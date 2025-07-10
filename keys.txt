@@ -1,0 +1,16 @@
+--- Key Pair Generation ---
+Generated: 2025-06-05T16:19:28.942Z
+Ed25519 Signing Private Key: Erzosh9c/wTCLVbpfMg331qCUslg6TrCOW/1D9Hj4TR8yG4toA9SaoeZO7frhaNKEu1c7ybmaw1WKZ2Biwgyjg==
+Ed25519 Signing Public Key: fMhuLaAPUmqHmTu364WjShLtXO8m5msNVimdgYsIMo4=
+X25519 Encryption Private Key: MC4CAQAwBQYDK2VuBCIEIPhEsqXShtJdI9hhbIQ5zLvE+0k6kbbbi3AlsOwFm4l3
+X25519 Encryption Public Key: MCowBQYDK2VuAyEAffYUK1QDOXfc/V1/KSWGPg32YmaG7UIwAEVbYRuM7hY=
+
+
+--- Key Pair Generation ---
+Generated: 2025-07-08T19:32:51.523Z
+Ed25519 Signing Private Key: zDyF2qFEDUiXtMAf7gkcUsxnOaxJBpKmg6NM8Nd1Gotrazs5j7vjap+OSK5RWQXi3sRmR0x6mjOF5tNTkqfIKA==
+Ed25519 Signing Public Key: a2s7OY+742qfjkiuUVkF4t7EZkdMepozhebTU5KnyCg=
+X25519 Encryption Private Key: MC4CAQAwBQYDK2VuBCIEICCe5rZDSAra5uwiLEcb5diYBkzTXXw/UzwLo41mTS9s
+X25519 Encryption Public Key: MCowBQYDK2VuAyEAUQLP5TGyzhlvh8fS/oFql5T3ZLeYIuhiCJjtOoTdeEM=
+
+Unique id: e0c48b9e-4ef4-443d-83bb-56d610a0cdce
