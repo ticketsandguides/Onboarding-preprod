@@ -121,62 +121,6 @@ const app = express();
 app.use(bodyParser.json());
 
 
-// vlookup endpoint (queries ONDC Registry for subscriber details)
-// /lookup endpoint using /v2.0/lookup with Ed25519 Authorization header
-app.post('/lookup', async (req, res) => {
-  console.log(`[${new Date().toISOString()}] /lookup: Received lookup request`);
- 
-  const {subscriber_id, country, city, domain, type} = req.body;
- 
-  try {
-    const body = {
-      subscriber_id: subscriber_id,
-      country: country,
-      city: city,
-      domain: domain,
-      type: type
-    }
-   const authHeader = await createAuthorizationHeader({
-      body: JSON.stringify(body),
-      privateKey: process.env.SIGNING_PRIVATE_KEY,
-      subscriberId: SUBSCRIBER_ID,
-      subscriberUniqueKeyId: UNIQUE_KEY_ID,
-    });
-
-    console.log("body: ",JSON.stringify(body))
-
-    console.log("authHeader: ", authHeader)
-
-    const isValid = await isHeaderValid({
-      header: authHeader,
-      body: JSON.stringify(body),
-      publicKey: process.env.ONDC_PUBLIC_KEY,
-    });
-
-
-    console.log("is valid header: ", isValid)
-
-    const response = await axios.post(
-      ONDC_LOOKUP_URL, // Should be set to https://<env>.registry.ondc.org/v2.0/lookup in .env
-      JSON.stringify(body),
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: authHeader,
-        },
-      }
-    );
-
-    console.log(`[${new Date().toISOString()}] /lookup: Lookup successful, response=`, response.data);
-    res.status(200).json(response.data);
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] /lookup: Lookup failed, error=${error.message}`, error.response?.data);
-    res.status(500).json({ error: 'Failed to perform lookup', details: error.response?.data });
-  }
-});
-
-
-
 // ondc-site-verification.html endpoint
 app.get('/ondc-site-verification.html', async (req, res) => {
   console.log(`[${new Date().toISOString()}] /ondc-site-verification.html: Serving ONDC site verification file, request_id=${REQUEST_ID}`);
