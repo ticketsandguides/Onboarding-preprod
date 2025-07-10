@@ -8,26 +8,13 @@ const { createAuthorizationHeader, isHeaderValid } = require('ondc-crypto-sdk-no
 
 // Configuration
 const port = process.env.PORT || 3000;
-const ONDC_SUBSCRIBE_URL = process.env.ONDC_SUBSCRIBE_URL;
 const ONDC_LOOKUP_URL = process.env.ONDC_LOOKUP_URL;
 const SUBSCRIBER_ID = process.env.SUBSCRIBER_ID;
-const SUBSCRIBER_URL = process.env.SUBSCRIBER_URL;
 const CALLBACK_URL = process.env.CALLBACK_URL;
 const REQUEST_ID = process.env.REQUEST_ID;
 const UNIQUE_KEY_ID = process.env.UNIQUE_KEY_ID;
-const EMAIL_ID = process.env.EMAIL_ID;
-const MOBILE_NO = process.env.MOBILE_NO;
-const COUNTRY = process.env.COUNTRY;
-const PAN_NO = process.env.PAN_NO;
-const PAN_NAME = process.env.PAN_NAME;
-const PAN_DATE_OF_INCORPORATION = process.env.PAN_DATE_OF_INCORPORATION;
-const NAME_OF_AUTHORISED_SIGNATORY = process.env.NAME_OF_AUTHORISED_SIGNATORY;
-const ADDRESS_OF_AUTHORISED_SIGNATORY = process.env.ADDRESS_OF_AUTHORISED_SIGNATORY;
-const LEGAL_ENTITY_NAME = process.env.LEGAL_ENTITY_NAME;
-const BUSINESS_ADDRESS = process.env.BUSINESS_ADDRESS;
 const GST_NO = process.env.GST_NO;
-const DOMAIN = process.env.DOMAIN;
-const CITY_CODE = process.env.CITY_CODE;
+
 
 const htmlFile = `
 <!--Contents of ondc-site-verification.html. -->
@@ -133,113 +120,6 @@ function getFutureUTCTimestamp(yearsFromNow = 1) {
 const app = express();
 app.use(bodyParser.json());
 
-// Subscribe endpoint (sends request to ONDC Registry)
-app.post('/subscribe', async (req, res) => {
-  console.log(`[${new Date().toISOString()}] /subscribe: Received subscription request, request_id=${REQUEST_ID}`);
- 
-  try {
-    // Generate timestamps
-    const validFrom = getUTCTimestamp();
-    const validUntil = getFutureUTCTimestamp(1);
-    const timestamp = getUTCTimestamp();
-
-    console.log(`[${new Date().toISOString()}] /subscribe: Generated timestamps, valid_from=${validFrom}, valid_until=${validUntil}, timestamp=${timestamp}`);
-
-    // Prepare subscription payload according to schema
-    const payload = {
-      context: {
-        operation: {
-          ops_no: 1
-        }
-      },
-      message: {
-        request_id: REQUEST_ID, // Using env variable for consistency
-        timestamp: timestamp,
-        entity: {
-          gst: {
-            legal_entity_name: LEGAL_ENTITY_NAME, // Using env variable
-            business_address: BUSINESS_ADDRESS, // Using env variable
-            city_code: [
-              CITY_CODE // Using env variable
-            ],
-            gst_no: GST_NO // Using env variable
-          },
-          pan: {
-            name_as_per_pan: PAN_NAME, // Using env variable
-            pan_no: PAN_NO, // Using env variable
-            date_of_incorporation: PAN_DATE_OF_INCORPORATION // Using env variable
-          },
-          name_of_authorised_signatory: NAME_OF_AUTHORISED_SIGNATORY, // Using env variable
-          address_of_authorised_signatory: ADDRESS_OF_AUTHORISED_SIGNATORY, // Using env variable
-          email_id: EMAIL_ID, // Using env variable
-          mobile_no: parseInt(MOBILE_NO), // Ensure mobile_no is an integer
-          country: COUNTRY, // Using env variable
-          subscriber_id: SUBSCRIBER_ID, // Using env variable
-          unique_key_id: UNIQUE_KEY_ID, // Using env variable
-          callback_url: CALLBACK_URL, // Using env variable
-          key_pair: {
-            signing_public_key: process.env.SIGNING_PUBLIC_KEY, // Assuming this exists or is derived
-            encryption_public_key: process.env.ENCRYPTION_PUBLIC_KEY, // Assuming this exists or is derived
-            valid_from: validFrom,
-            valid_until: validUntil
-          }
-        },
-        network_participant: [
-          {
-            subscriber_url: SUBSCRIBER_URL, // Changed to use the SUBSCRIBER_URL variable
-            domain: DOMAIN, // Using env variable
-            type: "buyerApp",
-            msn: false,
-            city_code: [
-              CITY_CODE // Using env variable
-            ]
-          }
-        ]
-      }
-    };
-
-    console.log(`[${new Date().toISOString()}] /subscribe: Sending subscription request to ONDC Registry (${ONDC_SUBSCRIBE_URL}), payload=`, JSON.stringify(payload, null, 2));
-
-    // Send subscription request to ONDC Registry
-    const response = await axios.post(ONDC_SUBSCRIBE_URL, payload, {
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    // Log the full response from ONDC Registry
-    console.log(`[${new Date().toISOString()}] /subscribe: Subscription request successful, response=`, JSON.stringify(response.data, null, 2));
-
-    res.status(200).json({
-      message: 'Subscription request sent successfully to ONDC Registry',
-      data: response.data,
-    });
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] /subscribe: Failed to send subscription request, error=${error.message}`, error.response?.data);
-    res.status(500).json({ error: 'Failed to send subscription request', details: error.response?.data });
-  }
-});
-
-// Endpoint for CALLBACK_URL=/ondc/onboarding
-app.post(`${CALLBACK_URL}/on_subscribe`, (req, res) => { // Changed to use CALLBACK_URL variable
-  console.log(`[${new Date().toISOString()}] ${CALLBACK_URL}/on_subscribe: Received challenge from ONDC Registry, request_id=${REQUEST_ID}, body=`, req.body);
-
-  try {
-    const { subscriber_id, challenge } = req.body;
-    if (!challenge) {
-      console.warn(`[${new Date().toISOString()}] ${CALLBACK_URL}/on_subscribe: Challenge missing in request body, request_id=${REQUEST_ID}, subscriber_id=${subscriber_id}`);
-      return res.status(400).json({ error: 'Challenge is required' });
-    }
-
-    console.log(`[${new Date().toISOString()}] ${CALLBACK_URL}/on_subscribe: Processing challenge for subscriber_id=${subscriber_id}`);
-
-    const answer = decryptAES256ECB(sharedKey, challenge);
-    console.log(`[${new Date().toISOString()}] ${CALLBACK_URL}/on_subscribe: Challenge decrypted successfully, request_id=${REQUEST_ID}, answer=${answer}`);
-
-    res.status(200).json({ answer });
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] ${CALLBACK_URL}/on_subscribe: Failed to process challenge, request_id=${REQUEST_ID}, error=${error.message}`);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 // vlookup endpoint (queries ONDC Registry for subscriber details)
 // /lookup endpoint using /v2.0/lookup with Ed25519 Authorization header
