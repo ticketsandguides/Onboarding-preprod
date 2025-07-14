@@ -186,7 +186,7 @@ app.post('/subscribe', async (req, res) => {
         },
         network_participant: [
           {
-            subscriber_url: SUBSCRIBER_URL, // Changed to use the SUBSCRIBER_URL variable
+            subscriber_url: "/bapl", // Changed to use the SUBSCRIBER_URL variable
             domain: DOMAIN, // Using env variable
             type: "buyerApp",
             msn: false,
