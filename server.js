@@ -392,7 +392,7 @@ app.post("/search", async (req, res) => {
     console.log(`[${new Date().toISOString()}] /search: AuthHeader=`, authHeader);
 
     const response = await axios.post(
-      "https://staging.gateway.proteantech.in/search",
+      "https://preprod.gateway.ondc.org/search",
       JSON.stringify(payload),
       {
         headers: {
