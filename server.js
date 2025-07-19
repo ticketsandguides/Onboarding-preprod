@@ -577,21 +577,23 @@ app.post(`${new URL(SUBSCRIBER_URL).pathname}/on_search`, async (req, res) => {
 app.post("/select", async (req, res) => {
   console.log(`[${new Date().toISOString()}] /select: Received select request`);
 
-  const { country, city, transaction_id, message } = req.body;
+  const { country, city, transaction_id, bpp_id, bpp_uri, message } = req.body;
 
-  if (!country || !city || !transaction_id || !message) {
+  // Validate required fields
+  if (!country || !city || !transaction_id || !bpp_id || !bpp_uri || !message) {
     console.warn(
-      `[${new Date().toISOString()}] /select: Missing country, city, transaction_id, or message in request body`
+      `[${new Date().toISOString()}] /select: Missing required fields in request body`
     );
     return res.status(400).json({
       error: "Select request failed",
-      details: "Missing country, city, transaction_id, or message in request body",
+      details: "Missing country, city, transaction_id, bpp_id, bpp_uri, or message in request body",
     });
   }
 
   const timestamp = new Date().toISOString();
   const messageId = crypto.randomUUID();
 
+  // Construct the select payload
   const payload = {
     context: {
       domain: DOMAIN,
@@ -601,16 +603,16 @@ app.post("/select", async (req, res) => {
       },
       timestamp: timestamp,
       bap_id: SUBSCRIBER_ID,
-      transaction_id: transaction_id, // Use provided transaction_id
+      transaction_id: transaction_id,
       message_id: messageId,
       version: "2.0.0",
       action: "select",
       bap_uri: SUBSCRIBER_URL,
-      bpp_id: "ondc-staging.goodpass.in", // From /on_search response
-      bpp_uri: "https://ondc-staging.goodpass.in", // From /on_search response
+      bpp_id: bpp_id, // Dynamic from on_search response
+      bpp_uri: bpp_uri, // Dynamic from on_search response
       ttl: "PT30S",
     },
-    message: message,
+    message: message, // Contains order details (e.g., provider, items, fulfillments)
   };
 
   console.log(
@@ -619,6 +621,7 @@ app.post("/select", async (req, res) => {
   );
 
   try {
+    // Generate authorization header
     const authHeader = await createAuthorizationHeader({
       body: JSON.stringify(payload),
       privateKey: process.env.SIGNING_PRIVATE_KEY,
@@ -626,10 +629,11 @@ app.post("/select", async (req, res) => {
       subscriberUniqueKeyId: UNIQUE_KEY_ID,
     });
 
+    // Validate the generated header
     const isValid = await isHeaderValid({
       header: authHeader,
       body: JSON.stringify(payload),
-      publicKey: process.env.REQUEST_PUBLIC_KEY,
+      publicKey: process.env.SIGNING_PUBLIC_KEY, // Use your own public key for self-validation
     });
 
     console.log(`[${new Date().toISOString()}] /select: isValidHeader=${isValid}`);
@@ -646,9 +650,10 @@ app.post("/select", async (req, res) => {
 
     console.log(`[${new Date().toISOString()}] /select: AuthHeader=`, authHeader);
 
+    // Send select request to BPP
     const response = await axios.post(
-      "https://ondc-staging.goodpass.in", // Use BPP URI from /on_search
-      JSON.stringify(payload),
+      bpp_uri, // Dynamic BPP URI
+      payload, // Send payload directly (no need to stringify again)
       {
         headers: {
           "Content-Type": "application/json",
@@ -677,6 +682,8 @@ app.post("/select", async (req, res) => {
     });
   }
 });
+
+
 // On_select endpoint to receive ONDC select results
 app.post(`${new URL(SUBSCRIBER_URL).pathname}/on_select`, async (req, res) => {
   console.log(
