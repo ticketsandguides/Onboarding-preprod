@@ -457,29 +457,39 @@ app.post(`${new URL(SUBSCRIBER_URL).pathname}/on_search`, async (req, res) => {
     // Call the lookup endpoint to retrieve the signing public key for the bpp_id
     let lookupResponse;
     try {
-      lookupResponse = await axios.post(
-        ONDC_LOOKUP_URL,
-        {
+      const lookUpPayload = {
           subscriber_id: bppId,
           country: COUNTRY, 
           domain: DOMAIN, 
           type: "BPP",
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: await createAuthorizationHeader({
-              body: JSON.stringify({
-                subscriber_id: bppId,
-                country: COUNTRY,
-                city: CITY_CODE,
-                domain: DOMAIN,
-                type: "BPP",
-              }),
+        }
+      const lookUpAuthHeader = await createAuthorizationHeader({
+              body: JSON.stringify(lookUpPayload),
               privateKey: process.env.SIGNING_PRIVATE_KEY,
               subscriberId: SUBSCRIBER_ID,
               subscriberUniqueKeyId: UNIQUE_KEY_ID,
-            }),
+            })
+
+      const isLookUpHeaderValid = await isHeaderValid({
+      header: lookUpAuthHeader,
+      body: JSON.stringify(lookUpPayload),
+      publicKey: process.env.ONDC_PUBLIC_KEY,
+    });
+
+      if(!isLookUpHeaderValid){
+        console.log("header is not valid")
+        return res.status(500).json({
+          message: "header not valid"
+        });
+      }
+      
+      lookupResponse = await axios.post(
+        ONDC_LOOKUP_URL,
+        JSON.stringify(lookUpPayload),
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: lookUpAuthHeader,
           },
         }
       );
