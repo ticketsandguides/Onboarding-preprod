@@ -473,7 +473,7 @@ app.post(`${new URL(SUBSCRIBER_URL).pathname}/on_search`, async (req, res) => {
       const isLookUpHeaderValid = await isHeaderValid({
       header: lookUpAuthHeader,
       body: JSON.stringify(lookUpPayload),
-      publicKey: process.env.ONDC_PUBLIC_KEY,
+      publicKey: process.env.ENCRYPTION_PUBLIC_KEY,
     });
 
       if(!isLookUpHeaderValid){
