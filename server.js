@@ -425,72 +425,143 @@ app.post("/search", async (req, res) => {
 
 
 // On_search endpoint to receive ONDC search results
-app.post(`${new URL(SUBSCRIBER_URL).pathname}/on_search`, async (req, res) => { // Dynamically extracting path from SUBSCRIBER_URL
-  console.log(
-    `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Received search results from ONDC gateway, body=`,
-    JSON.stringify(req.body)
-  );
+app.post(`${new URL(SUBSCRIBER_URL).pathname}/on_search`, async (req, res) => {
+  console.log(
+    `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Received search results from ONDC gateway, body=`,
+    JSON.stringify(req.body, null, 2)
+  );
 
-  try {
-    const { context, message } = req.body;
-    if (!context || !message) {
-      console.warn(
-        `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Missing context or message in request body`
-      );
-      return res
-        .status(400)
-        .json({ error: "Missing context or message in request body" });
-    }
+  try {
+    const { context, message } = req.body;
+    if (!context || !message) {
+      console.warn(
+        `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Missing context or message in request body`
+      );
+      return res
+        .status(400)
+        .json({ error: "Missing context or message in request body" });
+    }
 
-    // Verify authorization header
-    console.log(req.headers)
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      console.warn(
-        `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Missing authorization header`
-      );
-      return res.status(401).json({ error: "Missing authorization header" });
-    }
+    // Extract bpp_id from context
+    const bppId = context.bpp_id;
+    if (!bppId) {
+      console.warn(
+        `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Missing bpp_id in context`
+      );
+      return res.status(400).json({ error: "Missing bpp_id in context" });
+    }
+    console.log(
+      `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Extracted bpp_id=${bppId}`
+    );
 
-    const isValid = await isHeaderValid({
-      header: authHeader,
-      body: JSON.stringify(req.body),
-      publicKey: process.env.ONDC_GATEWAY_PUBLIC_KEY,
-    });
+    // Call the lookup endpoint to retrieve the signing public key for the bpp_id
+    let lookupResponse;
+    try {
+      lookupResponse = await axios.post(
+        ONDC_LOOKUP_URL,
+        {
+          subscriber_id: bppId,
+          country: COUNTRY, 
+          domain: DOMAIN, 
+          type: "BPP",
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: await createAuthorizationHeader({
+              body: JSON.stringify({
+                subscriber_id: bppId,
+                country: COUNTRY,
+                city: CITY_CODE,
+                domain: DOMAIN,
+                type: "BPP",
+              }),
+              privateKey: process.env.SIGNING_PRIVATE_KEY,
+              subscriberId: SUBSCRIBER_ID,
+              subscriberUniqueKeyId: UNIQUE_KEY_ID,
+            }),
+          },
+        }
+      );
 
-    if (!isValid) {
-      console.warn(
-        `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Invalid authorization header`
-      );
-      return res.status(401).json({ error: "Invalid authorization header" });
-    }
+      console.log(
+        `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Lookup successful for bpp_id=${bppId}, response=`,
+        JSON.stringify(lookupResponse.data, null, 2)
+      );
+    } catch (error) {
+      console.error(
+        `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Lookup failed for bpp_id=${bppId}, error=${error.message}`,
+        error.response?.data
+      );
+      return res.status(500).json({
+        error: "Failed to perform lookup for BPP",
+        details: error.response?.data || error.message,
+      });
+    }
 
-    // Process search results (e.g., store in database, send to client)
-    const searchResults = message.catalog || {};
-    console.log(
-      `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Processed search results, catalog=`,
-      JSON.stringify(searchResults, null, 2)
-    );
+    // Extract the signing public key from the lookup response
+    const bppDetails = lookupResponse.data && lookupResponse.data.length > 0 ? lookupResponse.data[0] : null;
+    if (!bppDetails || !bppDetails.signing_public_key) {
+      console.warn(
+        `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: No signing public key found for bpp_id=${bppId}`
+      );
+      return res.status(400).json({
+        error: "No signing public key found for the BPP",
+      });
+    }
 
-    res.status(200).json({
-      message: "Search results received successfully",
-      data: searchResults,
-    });
-  } catch (error) {
-    console.error(
-      `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Failed to process search results, error=${
-        error.message
-      }`
-    );
-    res
-      .status(500)
-      .json({
-        error: "Failed to process search results",
-        details: error.message,
-      });
-  }
+    const bppPublicKey = bppDetails.signing_public_key;
+    console.log(
+      `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Retrieved signing public key for bpp_id=${bppId}, publicKey=${bppPublicKey}`
+    );
+
+    // Verify authorization header using the retrieved BPP public key
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      console.warn(
+        `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Missing authorization header`
+      );
+      return res.status(401).json({ error: "Missing authorization header" });
+    }
+
+    const isValid = await isHeaderValid({
+      header: authHeader,
+      body: JSON.stringify(req.body),
+      publicKey: bppPublicKey, // Use the BPP's public key from lookup
+    });
+
+    if (!isValid) {
+      console.warn(
+        `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Invalid authorization header for bpp_id=${bppId}`
+      );
+      return res.status(401).json({ error: "Invalid authorization header" });
+    }
+
+    console.log(
+      `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Authorization header validated successfully for bpp_id=${bppId}`
+    );
+
+    // Process search results (e.g., store in database, send to client)
+    const searchResults = message.catalog || {};
+    console.log(
+      `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Processed search results, catalog=`,
+      JSON.stringify(searchResults, null, 2)
+    );
+
+    res.status(200).json({
+      message: "Search results received and validated successfully",
+      data: searchResults,
+    });
+  } catch (error) {
+    console.error(
+      `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_search: Failed to process search results, error=${error.message}`
+    );
+    res.status(500).json({
+      error: "Failed to process search results",
+      details: error.message,
+    });
+  }
 });
-
 
 // Select endpoint to initiate ONDC select
 app.post("/select", async (req, res) => {
