@@ -652,7 +652,7 @@ app.post("/select", async (req, res) => {
 
     // Send select request to BPP
     const response = await axios.post(
-      bpp_uri, // Dynamic BPP URI
+      "https://pilotasi.paygov.org.in/select", // Dynamic BPP URI
       payload, // Send payload directly (no need to stringify again)
       {
         headers: {
