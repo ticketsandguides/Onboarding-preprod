@@ -817,7 +817,7 @@ app.post(`${new URL(SUBSCRIBER_URL).pathname}/on_select`, async (req, res) => {
     const selectResults = message.order || {};
     console.log(
       `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_select: Processed select results, order=`,
-      JSON.stringify(selectResult)
+      JSON.stringify(selectResults)
     );
 
     res.status(200).json({
