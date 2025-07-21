@@ -713,10 +713,95 @@ app.post(`${new URL(SUBSCRIBER_URL).pathname}/on_select`, async (req, res) => {
       });
     }
 
+
+    // Extract bpp_id from context
+    const bppId = context.bpp_id;
+    if (!bppId) {
+      console.warn(
+        `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_select: Missing bpp_id in context`
+      );
+      return res.status(400).json({ error: "Missing bpp_id in context" });
+    }
+    console.log(
+      `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_select: Extracted bpp_id=${bppId}`
+    );
+
+    // Call the lookup endpoint to retrieve the signing public key for the bpp_id
+    let lookupResponse;
+    try {
+      const lookUpPayload = {
+          subscriber_id: bppId,
+          country: COUNTRY, 
+          domain: DOMAIN, 
+          type: "BPP",
+        }
+      const lookUpAuthHeader = await createAuthorizationHeader({
+              body: JSON.stringify(lookUpPayload),
+              privateKey: process.env.SIGNING_PRIVATE_KEY,
+              subscriberId: SUBSCRIBER_ID,
+              subscriberUniqueKeyId: UNIQUE_KEY_ID,
+            })
+
+      const isLookUpHeaderValid = await isHeaderValid({
+      header: lookUpAuthHeader,
+      body: JSON.stringify(lookUpPayload),
+      publicKey: process.env.SIGNING_PUBLIC_KEY,
+    });
+
+      if(!isLookUpHeaderValid){
+        console.log("header is not valid")
+        return res.status(500).json({
+          message: "header not valid"
+        });
+      }
+      
+      lookupResponse = await axios.post(
+        ONDC_LOOKUP_URL,
+        JSON.stringify(lookUpPayload),
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: lookUpAuthHeader,
+          },
+        }
+      );
+
+      console.log(
+        `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_select: Lookup successful for bpp_id=${bppId}, response=`,
+        JSON.stringify(lookupResponse.data, null, 2)
+      );
+    } catch (error) {
+      console.error(
+        `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_select: Lookup failed for bpp_id=${bppId}, error=${error.message}`,
+        error.response?.data
+      );
+      return res.status(500).json({
+        error: "Failed to perform lookup for BPP",
+        details: error.response?.data || error.message,
+      });
+    }
+
+    // Extract the signing public key from the lookup response
+    const bppDetails = lookupResponse.data && lookupResponse.data.length > 0 ? lookupResponse.data[0] : null;
+    if (!bppDetails || !bppDetails.signing_public_key) {
+      console.warn(
+        `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_select: No signing public key found for bpp_id=${bppId}`
+      );
+      return res.status(400).json({
+        error: "No signing public key found for the BPP",
+      });
+    }
+
+    const bppPublicKey = bppDetails.signing_public_key;
+    console.log(
+      `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_select: Retrieved signing public key for bpp_id=${bppId}, publicKey=${bppPublicKey}`
+    );
+
+
     const isValid = await isHeaderValid({
       header: authHeader,
       body: JSON.stringify(req.body),
-      publicKey: process.env.ONDC_GATEWAY_PUBLIC_KEY,
+      publicKey: bppPublicKey,
     });
 
     if (!isValid) {
