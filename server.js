@@ -835,6 +835,172 @@ app.post(`${new URL(SUBSCRIBER_URL).pathname}/on_select`, async (req, res) => {
   }
 });
 
+//init endpoint
+app.post("/init", async (req, res) => {
+  console.log(`[${new Date().toISOString()}] /init: Received init request`);
+
+  const { country, city, transaction_id, bpp_id, bpp_uri, message } = req.body;
+
+  if (!country || !city || !transaction_id || !bpp_id || !bpp_uri || !message) {
+    console.warn(`[${new Date().toISOString()}] /init: Missing required fields`);
+    return res.status(400).json({
+      error: "Missing required fields in request body",
+    });
+  }
+
+  const timestamp = new Date().toISOString();
+  const messageId = crypto.randomUUID();
+
+  const payload = {
+    context: {
+      domain: DOMAIN,
+      location: {
+        country: { code: country },
+        city: { code: city },
+      },
+      timestamp,
+      bap_id: SUBSCRIBER_ID,
+      transaction_id,
+      message_id: messageId,
+      version: "2.0.0",
+      action: "init",
+      bap_uri: SUBSCRIBER_URL,
+      bpp_id,
+      bpp_uri,
+      ttl: "PT30S",
+    },
+    message,
+  };
+
+  try {
+    const authHeader = await createAuthorizationHeader({
+      body: JSON.stringify(payload),
+      privateKey: process.env.SIGNING_PRIVATE_KEY,
+      subscriberId: SUBSCRIBER_ID,
+      subscriberUniqueKeyId: UNIQUE_KEY_ID,
+    });
+
+    const isValid = await isHeaderValid({
+      header: authHeader,
+      body: JSON.stringify(payload),
+      publicKey: process.env.SIGNING_PUBLIC_KEY,
+    });
+
+    if (!isValid) {
+      console.warn(`[${new Date().toISOString()}] /init: Invalid auth header`);
+      return res.status(401).json({ error: "Invalid authorization header" });
+    }
+
+    const response = await axios.post(`${bpp_uri}/init`, payload, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: authHeader,
+      },
+    });
+
+    console.log(`[${new Date().toISOString()}] /init: Sent init request successfully`, response.data);
+
+    res.status(200).json({
+      message: "Init request sent successfully to BPP",
+      data: response.data,
+    });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] /init: Init request failed`, error.response?.data || error.message);
+    res.status(500).json({
+      error: "Init request failed",
+      details: error.response?.data || error.message,
+    });
+  }
+});
+
+
+//on_intit
+app.post(`${new URL(SUBSCRIBER_URL).pathname}/on_init`, async (req, res) => {
+  console.log(
+    `[${new Date().toISOString()}] ${new URL(SUBSCRIBER_URL).pathname}/on_init: Received init response`,
+    JSON.stringify(req.body, null, 2)
+  );
+
+  try {
+    const { context, message } = req.body;
+    if (!context || !message) {
+      return res.status(400).json({ error: "Missing context or message in request body" });
+    }
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: "Missing authorization header" });
+    }
+
+    const bppId = context.bpp_id;
+    if (!bppId) {
+      return res.status(400).json({ error: "Missing bpp_id in context" });
+    }
+
+    const lookUpPayload = {
+      subscriber_id: bppId,
+      country: COUNTRY,
+      domain: DOMAIN,
+      type: "BPP",
+    };
+
+    const lookUpAuthHeader = await createAuthorizationHeader({
+      body: JSON.stringify(lookUpPayload),
+      privateKey: process.env.SIGNING_PRIVATE_KEY,
+      subscriberId: SUBSCRIBER_ID,
+      subscriberUniqueKeyId: UNIQUE_KEY_ID,
+    });
+
+    const isLookUpHeaderValid = await isHeaderValid({
+      header: lookUpAuthHeader,
+      body: JSON.stringify(lookUpPayload),
+      publicKey: process.env.SIGNING_PUBLIC_KEY,
+    });
+
+    if (!isLookUpHeaderValid) {
+      return res.status(500).json({ error: "Header validation failed during lookup" });
+    }
+
+    const lookupResponse = await axios.post(ONDC_LOOKUP_URL, lookUpPayload, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: lookUpAuthHeader,
+      },
+    });
+
+    const bppDetails = lookupResponse.data && lookupResponse.data.length > 0 ? lookupResponse.data[0] : null;
+    if (!bppDetails || !bppDetails.signing_public_key) {
+      return res.status(400).json({ error: "No signing public key found for the BPP" });
+    }
+
+    const bppPublicKey = bppDetails.signing_public_key;
+
+    const isValid = await isHeaderValid({
+      header: authHeader,
+      body: JSON.stringify(req.body),
+      publicKey: bppPublicKey,
+    });
+
+    if (!isValid) {
+      return res.status(401).json({ error: "Invalid authorization header" });
+    }
+
+    const orderData = message.order || {};
+    console.log(`[${new Date().toISOString()}] /on_init: Final order object=`, JSON.stringify(orderData, null, 2));
+
+    res.status(200).json({
+      message: "Init response received successfully",
+      data: orderData,
+    });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] /on_init: Failed to process init`, error.message);
+    res.status(500).json({
+      error: "Failed to process on_init",
+      details: error.message,
+    });
+  }
+});
+
 
 // Start server
 app.listen(port, () => {
