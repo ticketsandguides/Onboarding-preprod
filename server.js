@@ -4,7 +4,6 @@ const bodyParser = require('body-parser');
 const crypto = require('crypto');
 const _sodium = require('libsodium-wrappers');
 const axios = require('axios');
-const { Client } = require('pg');
 const { createAuthorizationHeader, isHeaderValid } = require('ondc-crypto-sdk-nodejs');
 
 // Configuration
@@ -316,13 +315,9 @@ app.get('/ondc-site-verification.html', async (req, res) => {
 });
 
 // Default route
-app.get('/', async (req, res) => {
-  try {
-    await client.query('SELECT 1');
-    res.send('Server is running and database is connected');
-  } catch (err) {
-    res.status(500).send('Database error'); 
-  }
+app.get('/health', (req, res) => {
+  console.log(`Server is UP`);
+  res.send('Server is UP');
 });
 
 // Health check route
