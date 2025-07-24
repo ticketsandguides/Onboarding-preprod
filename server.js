@@ -138,6 +138,13 @@ const client = new Client({
   connectionString: process.env.DATABASE_URL,
 });
 
+client.connect()
+  .then(() => {
+    console.log('Connected to database');
+  })
+  .catch((err) => {
+    console.error('Failed to connect to database:', err);
+  });
 
 // Subscribe endpoint (sends request to ONDC Registry)
 app.post('/subscribe', async (req, res) => {
