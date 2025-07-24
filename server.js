@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const crypto = require('crypto');
 const _sodium = require('libsodium-wrappers');
 const axios = require('axios');
+const { Client } = require('pg');
 const { createAuthorizationHeader, isHeaderValid } = require('ondc-crypto-sdk-nodejs');
 
 // Configuration
