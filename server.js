@@ -134,6 +134,10 @@ function getFutureUTCTimestamp(yearsFromNow = 1) {
 const app = express();
 app.use(bodyParser.json());
 
+const client = new Client({
+  connectionString: process.env.DATABASE_URL,
+});
+
 
 // Subscribe endpoint (sends request to ONDC Registry)
 app.post('/subscribe', async (req, res) => {
