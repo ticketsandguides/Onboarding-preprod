@@ -328,9 +328,13 @@ app.get('/ondc-site-verification.html', async (req, res) => {
 });
 
 // Default route
-app.get('/', (req, res) => {
-  console.log(`[${new Date().toISOString()}] /: Received request to default route`);
-  res.send('ONDC Onboarding is live');
+app.get('/', async (req, res) => {
+  try {
+    // await client.query('SELECT 1');
+    res.send('Server is running and database is connected');
+  } catch (err) {
+    res.status(500).send('Database error'); 
+  }
 });
 
 // Health check route
