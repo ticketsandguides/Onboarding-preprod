@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const crypto = require('crypto');
 const _sodium = require('libsodium-wrappers');
 const axios = require('axios');
+const { Client } = require('pg');
 const { createAuthorizationHeader, isHeaderValid } = require('ondc-crypto-sdk-nodejs');
 
 // Configuration
@@ -132,6 +133,18 @@ function getFutureUTCTimestamp(yearsFromNow = 1) {
 // Create Express app
 const app = express();
 app.use(bodyParser.json());
+
+const client = new Client({
+  connectionString: process.env.DATABASE_URL,
+});
+
+client.connect()
+  .then(() => {
+    console.log('Connected to database');
+  })
+  .catch((err) => {
+    console.error('Failed to connect to database:', err);
+  });
 
 // Subscribe endpoint (sends request to ONDC Registry)
 app.post('/subscribe', async (req, res) => {
@@ -315,9 +328,13 @@ app.get('/ondc-site-verification.html', async (req, res) => {
 });
 
 // Default route
-app.get('/', (req, res) => {
-  console.log(`[${new Date().toISOString()}] /: Received request to default route`);
-  res.send('ONDC Onboarding is live');
+app.get('/', async (req, res) => {
+  try {
+    await client.query('SELECT 1');
+    res.send('Server is running and database is connected');
+  } catch (err) {
+    res.status(500).send('Database error'); 
+  }
 });
 
 // Health check route
