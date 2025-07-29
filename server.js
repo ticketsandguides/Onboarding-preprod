@@ -132,7 +132,8 @@ function getFutureUTCTimestamp(yearsFromNow = 1) {
 
 // Create Express app
 const app = express();
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '1mb' }));
+app.use(bodyParser.urlencoded({ limit: '1mb', extended: true }));
 
 const client = new Client({
   connectionString: process.env.DATABASE_URL,
