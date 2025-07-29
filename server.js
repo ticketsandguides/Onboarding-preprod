@@ -859,7 +859,9 @@ app.post("/init", async (req, res) => {
   const { country, city, transaction_id, bpp_id, bpp_uri, message } = req.body;
 
   if (!country || !city || !transaction_id || !bpp_id || !bpp_uri || !message) {
-    console.warn(`[${new Date().toISOString()}] /init: Missing required fields`);
+    console.warn(
+      `[${new Date().toISOString()}] /init: Missing required fields`
+    );
     return res.status(400).json({
       error: "Missing required fields in request body",
     });
@@ -867,7 +869,10 @@ app.post("/init", async (req, res) => {
 
   const timestamp = new Date().toISOString();
   const messageId = crypto.randomUUID();
+  const payment_id = crypto.randomUUID(); // Assuming payment_id is needed for the init request
 
+  message.order.payments[0].id = payment_id; // Set the payment ID in the message
+  
   const payload = {
     context: {
       domain: DOMAIN,
@@ -889,6 +894,7 @@ app.post("/init", async (req, res) => {
     message,
   };
 
+  console.log("payload = ", JSON.stringify(payload));
   try {
     const authHeader = await createAuthorizationHeader({
       body: JSON.stringify(payload),
@@ -908,28 +914,38 @@ app.post("/init", async (req, res) => {
       return res.status(401).json({ error: "Invalid authorization header" });
     }
 
-    const response = await axios.post(`${bpp_uri}/init`, payload, {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: authHeader,
-      },
-    });
+    console.log("valid header = ", isValid);
+    const response = await axios.post(
+      `https://pilotasi.paygov.org.in/init`,
+      JSON.stringify(payload),
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authHeader,
+        },
+      }
+    );
 
-    console.log(`[${new Date().toISOString()}] /init: Sent init request successfully`, response.data);
+    console.log(
+      `[${new Date().toISOString()}] /init: Sent init request successfully`,
+      response.data
+    );
 
     res.status(200).json({
       message: "Init request sent successfully to BPP",
       data: response.data,
     });
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] /init: Init request failed`, error.response?.data || error.message);
+    console.error(
+      `[${new Date().toISOString()}] /init: Init request failed`,
+      error.response?.data || error.message
+    );
     res.status(500).json({
       error: "Init request failed",
       details: error.response?.data || error.message,
     });
   }
 });
-
 
 //on_intit
 app.post(`${new URL(SUBSCRIBER_URL).pathname}/on_init`, async (req, res) => {
